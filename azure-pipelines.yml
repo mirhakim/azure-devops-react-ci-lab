@@ -60,7 +60,7 @@ stages:
         targetType: inline
         script: |
           python3 -m pip install --user yamllint
-          export PATH=$HOME/.local/bin:$PATH
+          $env:PATH = "$HOME/.local/bin:$env:PATH"
           yamllint . || true
 
     # ---------- Markdown Linting (markdownlint) ----------
