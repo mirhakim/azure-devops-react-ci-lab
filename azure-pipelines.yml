@@ -1,10 +1,8 @@
-# Fixed lint tooling & PATH issues for Linux self-hosted agent
-
 trigger:
 - develop
 
 pool:
-  name: Default   
+  name: Default   # Self-hosted Linux agent pool
 
 stages:
 
@@ -43,7 +41,7 @@ stages:
       inputs:
         targetType: inline
         script: |
-          npx @biomejs/biome lint . || true
+          npx @biomejs/biome lint . || $true
 
     # ---------- CSS Linting (Stylelint) ----------
     - task: PowerShell@2
@@ -52,7 +50,7 @@ stages:
       inputs:
         targetType: inline
         script: |
-          npx stylelint "**/*.css" || true
+          npx stylelint "**/*.css" || $true
 
     # ---------- YAML Linting (yamllint) ----------
     - task: PowerShell@2
@@ -62,8 +60,8 @@ stages:
         targetType: inline
         script: |
           python3 -m pip install --user yamllint
-          export PATH=$HOME/.local/bin:$PATH
-          yamllint . || true
+          $env:PATH = "$HOME/.local/bin:$env:PATH"
+          yamllint . || $true
 
     # ---------- Markdown Linting (markdownlint) ----------
     - task: PowerShell@2
@@ -72,7 +70,7 @@ stages:
       inputs:
         targetType: inline
         script: |
-          npx markdownlint-cli "**/*.md" || true
+          npx markdownlint-cli "**/*.md" || $true
 
 # =========================================================
 # STAGE 3: BUILD & ARTIFACT PACKAGING
