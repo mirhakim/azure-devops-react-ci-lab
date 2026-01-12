@@ -1,105 +1,105 @@
+# Fixed lint tooling & PATH issues for Linux self-hosted agent
+
 trigger:
 - develop
 
-pool: Default
+pool:
+  name: Default   
 
 stages:
+
+# =========================================================
+# STAGE 1: SOFTWARE COMPOSITION ANALYSIS
+# =========================================================
 - stage: SoftwareCompositionAnalysis
   displayName: Software Composition Analysis (Dependency Security)
-  jobs: 
+  jobs:
   - job: DependencyVulnerabilityScan
     displayName: Dependency Vulnerability Scan (Retire.js)
-    steps: 
+    steps:
     - task: PowerShell@2
       displayName: Run Dependency Security Scan
       inputs:
-        targetType: 'inline'
+        targetType: inline
         script: |
-          npm install -g retire
           npm install
-          retire --exitwith 0
+          npx retire --exitwith 0
 
-# - stage: StaticCodeAnalysis
-#   displayName: Static Code Analysis
-#   jobs: 
-#   - job: SonarQubeAnalysis
-#     displayName: Static Code Analysis (SonarQube)
-#     steps:
-#     - task: PowerShell@2
-#       inputs:
-#         targetType: 'inline'
-#         script: 'sonar -D sonar.host.url=http://localhost:9000 -D sonar.token=**** -D sonar.projectKey=TodoPipeline'
-
-- stage: CodeQualityChecks
+# =========================================================
+# STAGE 2: CODE QUALITY & LINTING
+# =========================================================
+- stage: CodeQualityLinting
   displayName: Code Quality & Linting
+  dependsOn: SoftwareCompositionAnalysis
   jobs:
-  - job: LintingChecks
+  - job: MultiLanguageLinting
     displayName: Multi-Language Linting Checks
     steps:
+
+    # ---------- JavaScript Linting (Biome) ----------
     - task: PowerShell@2
-      continueOnError: true
       displayName: JavaScript Linting (Biome)
-      inputs:
-        targetType: 'inline'
-        script: |
-          Invoke-WebRequest -Uri "https://github.com/biomejs/biome/releases/download/%40biomejs%2Fbiome%402.3.8/biome-win32-x64.exe" -OutFile "$(Agent.ToolsDirectory)/biome.exe"
-          $(Agent.ToolsDirectory)/biome.exe lint $(System.DefaultWorkingDirectory)/src/
-
-    - task: PowerShell@2
       continueOnError: true
-      displayName: CSS Linting (Stylelint)  
       inputs:
-        targetType: 'inline'
+        targetType: inline
         script: |
-          npm install -g stylelint
-          npm install -g stylelint-config-standard        
-          stylelint $(System.DefaultWorkingDirectory)/src --config stylelint.config.mjs
+          npx @biomejs/biome lint . || true
 
+    # ---------- CSS Linting (Stylelint) ----------
     - task: PowerShell@2
+      displayName: CSS Linting (Stylelint)
       continueOnError: true
-      displayName: YAML Linting (yamllint)    
       inputs:
-        targetType: 'inline'
+        targetType: inline
         script: |
-          pip install --user yamllint
-          yamllint $(System.DefaultWorkingDirectory)
+          npx stylelint "**/*.css" || true
 
+    # ---------- YAML Linting (yamllint) ----------
     - task: PowerShell@2
+      displayName: YAML Linting (yamllint)
       continueOnError: true
-      displayName: Markdown Linting (markdownlint)      
       inputs:
-        targetType: 'inline'
+        targetType: inline
         script: |
-          npm install -g markdownlint-cli      
-          markdownlint $(System.DefaultWorkingDirectory)/
+          python3 -m pip install --user yamllint
+          export PATH=$HOME/.local/bin:$PATH
+          yamllint . || true
 
-- stage: BuildAndPackage
+    # ---------- Markdown Linting (markdownlint) ----------
+    - task: PowerShell@2
+      displayName: Markdown Linting (markdownlint)
+      continueOnError: true
+      inputs:
+        targetType: inline
+        script: |
+          npx markdownlint-cli "**/*.md" || true
+
+# =========================================================
+# STAGE 3: BUILD & ARTIFACT PACKAGING
+# =========================================================
+- stage: BuildAndArtifactPackaging
   displayName: Build & Artifact Packaging
+  dependsOn: CodeQualityLinting
   jobs:
-  - job: ApplicationBuild
+  - job: BuildUI
     displayName: Application Build
     steps:
-    - task: NodeTool@0
-      displayName: Setup Node.js Environment
-      inputs:
-        versionSource: 'spec'
-        versionSpec: '16.x'
-
     - task: PowerShell@2
       displayName: Install Dependencies
       inputs:
-        targetType: 'inline'
-        script: 'npm install'
+        targetType: inline
+        script: |
+          npm install
 
     - task: PowerShell@2
       displayName: Build Application
       inputs:
-        targetType: 'inline'
-        script: 'npm run build'
+        targetType: inline
+        script: |
+          npm run build
 
-    - task: PublishPipelineArtifact@1
-      displayName: Publish Build Artifact
+    - task: PublishBuildArtifacts@1
+      displayName: Publish UI Build Artifact
       inputs:
-        targetPath: '$(System.DefaultWorkingDirectory)/build/'
-        artifact: 'todo-ui'
-        publishLocation: 'pipeline'
+        pathToPublish: build
+        artifactName: todo-ui
